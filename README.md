@@ -30,7 +30,7 @@
 
 <!-- LOGO -->
 <div align="center" style="margin-top: 20px;">
-  <img src="image/LOGO.png" height="100" alt="Logos" style="margin-right: 20px; display: inline-block;">
+  <img src="image/logo.png" height="100" alt="Logos" style="margin-right: 20px; display: inline-block;">
 </div>
 
 ---
