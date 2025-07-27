@@ -90,6 +90,13 @@ We evaluate hallucination suppression performance on several widely-used benchma
 - [Object HalBench](https://github.com/RLHF-V/RLHF-V/tree/main)
 - [MMHal-Bench](https://huggingface.co/datasets/Shengcao1006/MMHal-Bench)
 
+## 🚀 Run TARS-DPO
+
+To launch training with our TARS-DPO strategy, simply run:
+
+```bash
+bash scripts/TARS.sh
+
 ---
 
 ## 📌 Citation
@@ -101,3 +108,4 @@ If you find our work helpful, please consider citing our paper:
 ```
 
 Your citation helps support our research and further advances the field of reliable vision-language models. 🚀
+```
