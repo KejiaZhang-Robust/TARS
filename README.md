@@ -44,8 +44,14 @@
 
 <div align="center" style="margin-top: 15px;">
   <p style="font-size: 12px; font-weight: 500; color: #444;">
-    <b>Left:</b> We present <i>TARS</i>, a <u>t</u>oken-<u>a</u>daptive p<u>r</u>eference <u>s</u>trategy for mitigating hallucinations in MLLMs. TARS reformulates direct preference optimization (DPO) as a min-max objective that (1) minimizes behavioral misalignment via preference feedback and (2) maximizes adaptability through perturbations of visual-agnostic tokens. <br>
-    <b>Right:</b> Evaluation on LLaVA-v1.5-13B with preference optimization (PO)~\cite{llava_origin} and industrial MLLMs under the AMBER benchmark~\cite{wang2023amber} shows that TARS surpasses PO baselines and matches GPT-4o~\cite{hurst2024gpt} in hallucination suppression.
+    <b>Left:</b> We present <i>TARS</i>, a <u>t</u>oken-<u>a</u>daptive p<u>r</u>eference <u>s</u>trategy for mitigating hallucinations in MLLMs.  
+  TARS reformulates Direct Preference Optimization (DPO) as a min-max objective that  
+  (1) minimizes behavioral misalignment via preference feedback, and  
+  (2) maximizes adaptability through perturbations of visual-agnostic tokens.  
+  <br><br>
+  <b>Right:</b> Evaluation on LLaVA-v1.5-13B with preference optimization (PO) and industrial MLLMs under the AMBER benchmark  
+  shows that TARS surpasses PO baselines and matches GPT-4o in hallucination suppression.
+
   </p>
 </div>
 
