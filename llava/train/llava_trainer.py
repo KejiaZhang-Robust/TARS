@@ -372,7 +372,6 @@ def chip_get_batch_logps(logits: torch.FloatTensor,
     Returns:
         Several tensors of shape (batch_size,) containing the average/sum kl divergence/log probabilities of the given labels under the given logits.
     """
-    # TODO: check if sequence_length is match between them (2025-04-06 Kejia) 
     assert logits.shape[:-1] == labels.shape, (logits.shape[:-1], labels.shape)
     assert reference_logits.shape[:-1] == labels.shape, (reference_logits.shape[:-1], labels.shape)
 
@@ -382,7 +381,6 @@ def chip_get_batch_logps(logits: torch.FloatTensor,
 
     loss_mask = (labels != -100)
 
-    # dummy token; we'll ignore the losses on these tokens later
     labels[labels == -100] = 0
 
     vocab_logps = logits.log_softmax(-1)
@@ -520,23 +518,6 @@ def get_eval_ds_config(offload=None, stage=3):
         "wall_clock_breakdown": False
     }
     
-def randomly_replace_tokens_with_labels(input_ids: torch.Tensor, labels: torch.Tensor, tokenizer, replace_prob=0.1, ignore_tokens=[1, 2, 0]):
-    input_ids = input_ids.clone()
-    labels = labels.clone()
-    vocab_size = tokenizer.vocab_size
-    mask = torch.rand_like(input_ids.float()) < replace_prob # 小于prob的会被扰动
-
-    for token_id in ignore_tokens:
-        mask &= (input_ids != token_id)
-
-    random_tokens = torch.randint(low=5, high=vocab_size, size=input_ids.shape, device=input_ids.device)
-    input_ids[mask] = random_tokens[mask]
-
-    # 若某 token 被扰动，其对应 label 应该被设为 IGNORE_INDEX（不计 loss）-> 防止影响目标对齐
-    ignore_index = -100
-    labels[mask] = ignore_index
-
-    return input_ids, labels
 
 def get_token_image_similarity_scores_batched(input_ids, image, tokenizer, clip_encoder, clip_processor, device="cuda"):
     # Step 1: decode tokens
@@ -566,16 +547,13 @@ def get_token_image_similarity_scores_batched(input_ids, image, tokenizer, clip_
     return sorted_tokens  # list of (token, similarity score)
 
 def generate_probabilistic_topk_mask(scores: torch.Tensor, target_ratio: float) -> torch.Tensor:
-    """
-    每个 token 根据 score 进行采样，但最终严格控制扰动 token 数量。
-    """
     B, L = scores.shape
     total_tokens = B * L
     num_to_select = int(total_tokens * target_ratio)
-    num_to_select = max(num_to_select, 1)  # 至少选择一个 token
+    num_to_select = max(num_to_select, 1) 
 
     probs = scores.flatten()
-    probs = probs / probs.sum()  # softmax 可选
+    probs = probs / probs.sum()
 
     indices = torch.multinomial(probs, num_samples=num_to_select, replacement=False)
 
@@ -589,7 +567,7 @@ def perturb_tokens_with_labels(
     token_similarities: Union[List[List[float]], torch.Tensor],  # [B, L]
     tokenizer,
     replace_prob: float = 0.1,
-    mode: str = "replace",                      # "replace", "swap", "mask"
+    mode: str = "replace",                      # "replace", "mask"
     ignore_tokens: list = None,
     mask_token_id: int = None,
     ignore_index: int = -100
@@ -598,8 +576,7 @@ def perturb_tokens_with_labels(
     labels = labels.clone()
     B, L = input_ids.shape
     vocab_size = tokenizer.vocab_size
-
-    # === 处理 token_similarities ===
+    
     if isinstance(token_similarities, list):
         token_similarities = [
             [1.0 if x is None else x for x in row]
@@ -611,32 +588,19 @@ def perturb_tokens_with_labels(
     else:
         raise TypeError("token_similarities must be a List[List[float]] or torch.Tensor")
 
-    # === 截断或补齐 token_similarities ===
     if sim_tensor.shape != (B, L):
         print(f"[WARN] similarity shape {sim_tensor.shape} != input shape {(B, L)} — will fix")
         sim_tensor = F.pad(sim_tensor, (0, L - sim_tensor.shape[1]), value=1.0)[:B, :L]
-    
+
     sim_tensor = torch.nan_to_num(sim_tensor, nan=1.0)
 
-    # === 生成扰动概率 ===
     perturb_scores = 1.0 - sim_tensor
     max_val = perturb_scores.max()
     if max_val > 0:
         perturb_scores /= max_val
-        
-    # === 计算每个样本的最大值与第二大值之间的差值 ===
-    topk_values, _ = torch.topk(perturb_scores, k=2, dim=1, largest=True, sorted=True)
-    delta_p_perturb = topk_values[:, 0] - topk_values[:, 1]  # [B]
-    delta_p_perturb = 1/(delta_p_perturb+0.01)
-    delta_p_perturb = delta_p_perturb*0.001
-    # print(delta_p_perturb)
-    delta_p_perturb = min(delta_p_perturb, 0.50)
-    #TODO： new
-    # mask = generate_probabilistic_topk_mask(perturb_scores, target_ratio=replace_prob)
-
-    mask = generate_probabilistic_topk_mask(perturb_scores, target_ratio=delta_p_perturb)
     
-    # === 忽略特殊 token（比如 pad、bos、eos）
+    mask = generate_probabilistic_topk_mask(perturb_scores, target_ratio=replace_prob)
+
     if ignore_tokens is None:
         ignore_tokens = [
             tokenizer.bos_token_id,
@@ -646,17 +610,9 @@ def perturb_tokens_with_labels(
     for token_id in ignore_tokens:
         mask &= (input_ids != token_id)
 
-    # === 扰动逻辑 ===
     if mode == "replace":
         random_tokens = torch.randint(low=5, high=vocab_size, size=(B, L), device=input_ids.device)
         input_ids[mask] = random_tokens[mask]
-
-    elif mode == "swap":
-        for b in range(B):
-            positions = torch.where(mask[b])[0]
-            for i in range(0, len(positions) - 1, 2):
-                l1, l2 = positions[i], positions[i + 1]
-                input_ids[b, l1], input_ids[b, l2] = input_ids[b, l2], input_ids[b, l1]
 
     elif mode == "mask":
         if mask_token_id is None:
@@ -675,7 +631,7 @@ def perturb_tokens_randomly(
     token_similarities: Union[List[List[float]], torch.Tensor],  # ignored here
     tokenizer,
     replace_prob: float = 0.1,
-    mode: str = "replace",                      # "replace", "swap", "mask"
+    mode: str = "replace",                      # "replace", "mask"
     ignore_tokens: list = None,
     mask_token_id: int = None,
     ignore_index: int = -100
@@ -685,7 +641,6 @@ def perturb_tokens_randomly(
     B, L = input_ids.shape
     vocab_size = tokenizer.vocab_size
 
-    # === 默认忽略特殊 token（pad、bos、eos）===
     if ignore_tokens is None:
         ignore_tokens = [
             tokenizer.bos_token_id,
@@ -693,24 +648,15 @@ def perturb_tokens_randomly(
             tokenizer.pad_token_id,
         ]
 
-    # === 随机生成 mask ===
     rand = torch.rand((B, L), device=input_ids.device)
     mask = rand < replace_prob
 
     for token_id in ignore_tokens:
         mask &= (input_ids != token_id)
 
-    # === 扰动逻辑 ===
     if mode == "replace":
         random_tokens = torch.randint(low=5, high=vocab_size, size=(B, L), device=input_ids.device)
         input_ids[mask] = random_tokens[mask]
-
-    elif mode == "swap":
-        for b in range(B):
-            positions = torch.where(mask[b])[0]
-            for i in range(0, len(positions) - 1, 2):
-                l1, l2 = positions[i], positions[i + 1]
-                input_ids[b, l1], input_ids[b, l2] = input_ids[b, l2], input_ids[b, l1]
 
     elif mode == "mask":
         if mask_token_id is None:
@@ -793,28 +739,19 @@ class LLAVADPOTrainer(LLaVATrainer):
                     policy_rejected_logp: torch.FloatTensor,
                     policy_win_diffusionImage_logp: torch.FloatTensor,
                     uncond_ref_win_logp: torch.FloatTensor,
-                    policy_rej_diffusionImage_logp: torch.FloatTensor,
-                    uncond_ref_rej_logp: torch.FloatTensor,
-                    clean_policy_chosen_logp: torch.FloatTensor,
-                    clean_policy_rejected_logp: torch.FloatTensor,
                     reference_chosen_logp: torch.FloatTensor,
                     reference_rejected_logp: torch.FloatTensor,
-                    clean_win_logp: torch.FloatTensor,
-                    clean_rej_logp: torch.FloatTensor,
-                    chosen_position_kl_adv: torch.FloatTensor,
-                    rejected_position_kl_adv: torch.FloatTensor,
-                    clean_chosen_position_kl: torch.FloatTensor, 
-                    clean_rejected_position_kl: torch.FloatTensor,
                     beta: float=0.1, gama:float=0.3
                     ) -> Tuple[
         torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         pi_logratios = policy_chosen_logp - policy_rejected_logp
         ref_logratios = reference_chosen_logp - reference_rejected_logp
         logits = pi_logratios - ref_logratios
+                
+        logits_diffusion = policy_chosen_logp - reference_chosen_logp - (policy_win_diffusionImage_logp - uncond_ref_win_logp)
         
-        logits_negtive = policy_chosen_logp - reference_chosen_logp - (policy_win_diffusionImage_logp - uncond_ref_win_logp)
-        
-        losses = -F.logsigmoid(beta * logits) - F.logsigmoid(beta * logits_negtive)
+
+        losses = -F.logsigmoid(beta * logits) - F.logsigmoid(beta * logits_diffusion)
         
         chosen_values = policy_chosen_logp - reference_chosen_logp
         rejected_values = policy_rejected_logp - reference_rejected_logp
@@ -845,11 +782,12 @@ class LLAVADPOTrainer(LLaVATrainer):
             original_win_input_ids = win_input_ids.clone()
             original_rej_input_ids = rej_input_ids.clone()
 
+
             win_input_ids, win_labels, win_mask = perturb_tokens_with_labels(
                 win_input_ids, win_labels, win_input_token_similarities, mode=self.args.token_mode_adv, tokenizer=tokenizer, replace_prob=self.args.adv_p)
             rej_input_ids, rej_labels, rej_mask = perturb_tokens_with_labels(
                 rej_input_ids, rej_labels, rej_input_token_similarities, mode=self.args.token_mode_adv, tokenizer=tokenizer, replace_prob=self.args.adv_p)
-             
+        
         concatenated_input_ids_6 = concate_pad_seven(win_input_ids, rej_input_ids, original_win_input_ids, original_rej_input_ids, win_input_ids, rej_input_ids, pad_token_id)
         concatenated_labels_6 = concate_pad_seven(win_labels, rej_labels, win_labels, rej_labels, win_labels, rej_labels, -100)
         concatenated_attention_mask_6 = concatenated_input_ids_6.ne(pad_token_id)
@@ -879,63 +817,50 @@ class LLAVADPOTrainer(LLaVATrainer):
                 **data_dict
             )
         
-        all_position_kl, policy_logps, ref_logps, \
-            per_policy_token_logps, per_reference_token_logps = chip_get_batch_logps(
+        _, policy_logps, ref_logps, \
+            _, _ = chip_get_batch_logps(
             output.logits, ref_output.logits,
             new_labels, average_log_prob=False)
-        
-        chosen_position_kl, rejected_position_kl, clean_chosen_position_kl, clean_rejected_position_kl, policy_diffusion_win_kl, policy_diffusion_rej_kl  = all_position_kl.split([win_size, rej_size, win_size, rej_size, win_size, rej_size])
-        
+                
         # three-tuple logits
-        reference_chosen_logp, reference_rejected_logp, clean_reference_chosen_logp, clean_reference_rejected_logp, reference_diffusion_chosen_logp, reference_diffusion_rejected_logp = ref_logps.split([win_size, rej_size, win_size, rej_size, win_size, rej_size])
+        reference_chosen_logp, reference_rejected_logp, _, _, reference_diffusion_chosen_logp, _ = ref_logps.split([win_size, rej_size, win_size, rej_size, win_size, rej_size])
 
-        policy_chosen_logp, policy_rejected_logp, clean_policy_chosen_logp, clean_policy_rejected_logp, policy_diffusion_shosen_logp, policy_diffusion_rejected_logp = policy_logps.split([win_size, rej_size, win_size, rej_size, win_size, rej_size])
-
-        all_position_kl_adv_clean, _, _, \
-            _, _ = chip_get_batch_logps(
-            output.logits[:2], ref_output.logits[-2:],
-            new_labels[:2], average_log_prob=False)
-            
-        win_kl_adv_clean, rej_kl_adv_clean = all_position_kl_adv_clean.split([win_size, rej_size])
-        
+        policy_chosen_logp, policy_rejected_logp, _, _, policy_diffusion_shosen_logp, _ = policy_logps.split([win_size, rej_size, win_size, rej_size, win_size, rej_size])
+                    
         losses, chosen_rewards, rejected_rewards = self.adv_loss(
             policy_chosen_logp, policy_rejected_logp, 
             policy_diffusion_shosen_logp, reference_diffusion_chosen_logp,
-            policy_diffusion_rejected_logp, reference_diffusion_rejected_logp,
-            clean_policy_chosen_logp, clean_policy_rejected_logp,
-            reference_chosen_logp, reference_rejected_logp,
-            clean_reference_chosen_logp, clean_reference_rejected_logp,
-            chosen_position_kl, rejected_position_kl,
-            win_kl_adv_clean, rej_kl_adv_clean)
+            reference_chosen_logp, reference_rejected_logp)
 
         def frequency_triplet_loss(z_pw, z_cw, z_cr, margin=0.5):
+
             def to_fft(x):
                 x = x.to(torch.float32)
                 fft = torch.fft.fft(x, dim=0)
-                return torch.abs(fft)        
+                return torch.abs(fft)
 
             z_pw_f = to_fft(z_pw)
             z_cw_f = to_fft(z_cw)
             z_cr_f = to_fft(z_cr)
 
-            pos_dist = F.mse_loss(z_pw_f, z_cw_f, reduction='mean')     # z_pw vs z_cw
-            neg_dist = F.mse_loss(z_pw_f, z_cr_f, reduction='mean')     # z_pw vs z_cr
+            pos_dist = F.mse_loss(z_pw_f, z_cw_f, reduction='mean')
+            neg_dist = F.mse_loss(z_pw_f, z_cr_f, reduction='mean')
 
             loss = F.relu(pos_dist - neg_dist + margin)
 
             return loss
 
-        output_hidden_emd = output.hidden_states[0] # [perturbed_win, perturbed_rej, clean_win, clean_rej]
-        ref_hidden_emd = ref_output.hidden_states[0] # [perturbed_win, perturbed_rej, clean_win, clean_rej]
+        output_hidden_emd = output.hidden_states[0]
+        ref_hidden_emd = ref_output.hidden_states[0]
 
-        z_pw = output_hidden_emd[0]  # perturbed_win
-        z_cw = ref_hidden_emd[2]     # clean_win
-        z_cr = ref_hidden_emd[3]     # clean_rej
+        z_pw = output_hidden_emd[0]
+        z_cw = ref_hidden_emd[2]
+        z_cr = ref_hidden_emd[3]
 
         freq_align_loss = frequency_triplet_loss(z_pw, z_cw, z_cr, margin=0.5)
-            
-        loss = losses.mean() + self.args.beta_fre * freq_align_loss
         
+        loss = losses.mean() + self.args.beta_fre * freq_align_loss
+
         reward_accuracies = (chosen_rewards > rejected_rewards).float()
 
         train_test = 'train' if model.training else 'test'

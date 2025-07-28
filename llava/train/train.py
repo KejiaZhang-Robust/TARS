@@ -1308,6 +1308,7 @@ def train(attn_implementation=None):
         )
     model.config.use_cache = False
 
+    # 需要冻结的地方
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
     
@@ -1433,9 +1434,23 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
                         
+    # import torch.distributed as dist
+    # rank = dist.get_rank() if dist.is_initialized() else 0
+
+    # clip_encoder, clip_preprocess = None, None
+
+    # if training_args.clip and rank == 0:
+    #     clip_encoder, clip_preprocess = CLIPManager.load(
+    #         model_name="ViT-B/32",
+    #         device=training_args.device,
+    #         dtype=torch.float16,
+    #         verbose=True
+    #     )
         
     if training_args.task == 'DPO':
-        if data_args.offline_ref_logits:
+        # TODO: DPO process
+        if data_args.offline_ref_logits: # Default empty string '', so skip it
+            # get ref logits
             if not os.path.exists(data_args.offline_ref_logits):
                 data_module = make_dpo_data_module(tokenizer=tokenizer,
                                                    data_args=data_args)
@@ -1463,6 +1478,7 @@ def train(attn_implementation=None):
                 del data_module
             ref_model = None
         else:
+            # TODO DPO process
             ref_model = get_ref_model(model_args.model_name_or_path, training_args, model_args)
         data_module = make_dpo_data_module(tokenizer=tokenizer, data_args=data_args)
         
