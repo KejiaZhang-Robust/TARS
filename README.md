@@ -96,6 +96,7 @@ To launch training with our TARS-DPO strategy, simply run:
 
 ```bash
 bash scripts/TARS.sh
+```
 
 ---
 
