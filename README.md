@@ -1,6 +1,6 @@
 <div align="center">
   <h2 style="font-size: 36px; font-weight: bold; color: #333;">
-    TARS: MinMax Token-Adaptive Preference Strategy for Hallucination Reduction in MLLMs
+    TARS: MinMax Token-Adaptive Preference Strategy for MLLM Hallucination Reduction
   </h2>
   <h4 style="font-size: 20px; color: #777; font-style: italic;">
     A tribute to TARS from <i>Interstellar</i> — not piloting through wormholes, but steering MLLMs away from the gravity of hallucination.
