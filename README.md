@@ -106,11 +106,11 @@ bash scripts/TARS.sh
 If you find our work helpful, please consider citing our paper:
 
 ```
-@article{zhang2025tarsminmaxtokenadaptivepreference,
-      title={TARS: MinMax Token-Adaptive Preference Strategy for Hallucination Reduction in MLLMs}, 
-      author={Kejia Zhang and Keda Tao and Zhiming Luo and Chang Liu and Jiasheng Tang and Huan Wang},
-      journal={arXiv preprint arXiv:2507.21584},
-      year={2025}
+@article{zhang2025tars,
+  title={TARS: MinMax Token-Adaptive Preference Strategy for Hallucination Reduction in MLLMs},
+  author={Zhang, Kejia and Tao, Keda and Luo, Zhiming and Liu, Chang and Tang, Jiasheng and Wang, Huan},
+  journal={arXiv preprint arXiv:2507.21584},
+  year={2025}
 }
 ```
 
