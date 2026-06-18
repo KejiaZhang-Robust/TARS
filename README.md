@@ -37,8 +37,8 @@
 
 ## 📰 News
 
-- **[2026-XX-XX]** 🎉 TARS is accepted to **ECCV 2026**! This repository hosts the camera-ready release.
-- **[2025-07-28]** TARS is **open-sourced**. 🔥
+- **[2026-06-18]** 🎉 TARS is accepted to **ECCV 2026**! This repository hosts the camera-ready release.
+- **[2026-06-18]** TARS is **open-sourced**. 🔥
 
 ---
 
