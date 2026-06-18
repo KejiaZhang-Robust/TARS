@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f llava/.DS_Store; grep -n \"Apache\\\\|MIT\" pyproject.toml)"
+    ],
+    "additionalDirectories": [
+      "/Users/kejia_zhang/Desktop/TARS/llava"
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite our ECCV 2026 paper."
+title: "TARS: MinMax Token-Adaptive Preference Strategy for MLLM Hallucination Reduction"
+authors:
+  - family-names: Zhang
+    given-names: Kejia
+  - family-names: Tao
+    given-names: Keda
+  - family-names: Luo
+    given-names: Zhiming
+  - family-names: Liu
+    given-names: Chang
+  - family-names: Tang
+    given-names: Jiasheng
+  - family-names: Wang
+    given-names: Huan
+preferred-citation:
+  type: conference-paper
+  title: "TARS: MinMax Token-Adaptive Preference Strategy for Hallucination Reduction in MLLMs"
+  authors:
+    - family-names: Zhang
+      given-names: Kejia
+    - family-names: Tao
+      given-names: Keda
+    - family-names: Luo
+      given-names: Zhiming
+    - family-names: Liu
+      given-names: Chang
+    - family-names: Tang
+      given-names: Jiasheng
+    - family-names: Wang
+      given-names: Huan
+  collection-title: "Proceedings of the European Conference on Computer Vision (ECCV)"
+  year: 2026
+url: "https://github.com/KejiaZhang-Robust/TARS"
+repository-code: "https://github.com/KejiaZhang-Robust/TARS"
+license: Apache-2.0

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Training / eval artifacts
+output/
+eval_output/
+checkpoints/
+*.parquet
+wandb/
+*.log
+
+# Env / OS
+.venv/
+.env
+.DS_Store
